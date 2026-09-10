@@ -16,6 +16,7 @@ from app.routes.auth import router as auth_router
 from app.routes.scheduler import router as scheduler_router
 from app.routes.monitoring import router as monitoring_router
 from app.routes.ws import router as ws_router
+from app.routes.gee import router as gee_router
 
 api_router = APIRouter(prefix="/api")
 
@@ -34,3 +35,4 @@ api_router.include_router(kpi_router)
 api_router.include_router(scheduler_router)
 api_router.include_router(monitoring_router)
 api_router.include_router(ws_router)
+api_router.include_router(gee_router)

@@ -17,6 +17,7 @@ from app.database import SessionLocal
 from app.models import Farm, Farmer, CropHealth
 from app.services import satellite, weather, ml_pipeline, feature_engine
 from app.services.notification_service import send_alert_notifications
+from app.services import gee_ingestion
 
 logger = logging.getLogger("sarp.scheduler")
 
@@ -24,50 +25,14 @@ scheduler = BackgroundScheduler()
 
 
 def job_ingest_satellite():
-    """Fetch latest satellite imagery for all farms and compute indices."""
-    logger.info("Satellite ingestion job started")
+    """Fetch real Sentinel-2/1 data from GEE for all farms."""
+    logger.info("GEE satellite ingestion job started")
     db = SessionLocal()
     try:
-        farms = db.query(Farm).all()
-        updated = 0
-        for farm in farms:
-            try:
-                # Get latest Sentinel-2 composite
-                result = satellite.get_sentinel2_composite(
-                    farm.centroid_lat, farm.centroid_lon,
-                    start_date=datetime.now().date() - __import__("datetime").timedelta(days=10),
-                    end_date=datetime.now().date(),
-                )
-                if not result or result.get("source") == "simulated":
-                    continue
-
-                # Create new crop health observation
-                obs = CropHealth(
-                    farm_id=farm.id,
-                    observation_date=datetime.now().date(),
-                    ndvi_current=result.get("ndvi", 0),
-                    ndvi_historical=0.65,
-                    ndvi_deviation_pct=0,
-                    ndvi_trend="stable",
-                    ndwi_current=result.get("ndwi", 0),
-                    growth_stage="vegetative",
-                    flood_exposure=False,
-                    drought_stress=False,
-                    rainfall_30d=0,
-                    rainfall_deviation_30d=0,
-                    temperature_stress_days=0,
-                    sar_vh_backscatter=0,
-                    crop_health_score=80,
-                    status="green",
-                    confidence=0.85,
-                )
-                db.add(obs)
-                updated += 1
-            except Exception as e:
-                logger.warning(f"Failed to ingest satellite for farm {farm.id}: {e}")
-
-        db.commit()
-        logger.info(f"Satellite ingestion complete: {updated}/{len(farms)} farms updated")
+        result = gee_ingestion.run_full_ingestion(db)
+        logger.info(f"GEE ingestion complete: {result}")
+    except Exception as e:
+        logger.error(f"GEE ingestion failed: {e}")
     finally:
         db.close()
 
