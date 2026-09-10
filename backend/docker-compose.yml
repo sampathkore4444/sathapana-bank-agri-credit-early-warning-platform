@@ -1,0 +1,52 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: sarp
+      POSTGRES_USER: sarp
+      POSTGRES_PASSWORD: sarp123
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sarp"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: "postgresql://sarp:sarp123@db:5432/sarp"
+      USE_SQLITE: "false"
+      JWT_SECRET: "sarp-prod-secret-change-me"
+      SMTP_HOST: "${SMTP_HOST:-}"
+      SMTP_PORT: "${SMTP_PORT:-587}"
+      SMTP_USER: "${SMTP_USER:-}"
+      SMTP_PASSWORD: "${SMTP_PASSWORD:-}"
+      GEE_PROJECT_ID: "${GEE_PROJECT_ID:-}"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ml_models:/app/ml_models
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  ml_models:

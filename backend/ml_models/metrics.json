@@ -1,0 +1,13 @@
+{
+  "samples": 154,
+  "positive_ratio": 0.292,
+  "logistic_regression": {
+    "cv_auc_mean": 0.989,
+    "cv_auc_std": 0.01
+  },
+  "gradient_boosting": {
+    "cv_auc_mean": 0.995,
+    "cv_auc_std": 0.009
+  },
+  "best_model": "gradient_boosting"
+}
