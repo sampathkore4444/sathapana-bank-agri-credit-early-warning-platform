@@ -4,6 +4,7 @@ Computes per-farm features from satellite indices, weather data,
 and financial snapshots — ready for model training/inference.
 """
 import json
+import logging
 from datetime import date, timedelta
 from typing import Optional
 from sqlalchemy.orm import Session
@@ -14,10 +15,19 @@ from app.models import (
     FinancialSnapshot, Alert,
 )
 
+logger = logging.getLogger(__name__)
+
 
 def compute_satellite_features(db: Session, farm_id: int) -> dict:
     """Compute satellite/environmental features for a single farm."""
-    # Get latest crop health
+    try:
+        return _compute_satellite_features(db, farm_id)
+    except Exception as exc:
+        logger.exception("Failed to compute satellite features for farm_id=%s", farm_id)
+        return {}
+
+
+def _compute_satellite_features(db: Session, farm_id: int) -> dict:
     latest = (
         db.query(CropHealth)
         .filter(CropHealth.farm_id == farm_id)
@@ -79,6 +89,14 @@ def compute_satellite_features(db: Session, farm_id: int) -> dict:
 
 def compute_farm_features(db: Session, farm_id: int) -> dict:
     """Compute farm/agricultural features."""
+    try:
+        return _compute_farm_features(db, farm_id)
+    except Exception as exc:
+        logger.exception("Failed to compute farm features for farm_id=%s", farm_id)
+        return {}
+
+
+def _compute_farm_features(db: Session, farm_id: int) -> dict:
     farm = db.query(Farm).filter(Farm.id == farm_id).first()
     if not farm:
         return {}
@@ -119,7 +137,14 @@ def compute_farm_features(db: Session, farm_id: int) -> dict:
 
 def compute_financial_features(db: Session, farmer_id: int) -> dict:
     """Compute financial/banking features from latest snapshot + loan."""
-    # Latest financial snapshot
+    try:
+        return _compute_financial_features(db, farmer_id)
+    except Exception as exc:
+        logger.exception("Failed to compute financial features for farmer_id=%s", farmer_id)
+        return {}
+
+
+def _compute_financial_features(db: Session, farmer_id: int) -> dict:
     snap = (
         db.query(FinancialSnapshot)
         .filter(FinancialSnapshot.farmer_id == farmer_id)
@@ -203,7 +228,14 @@ def compute_financial_features(db: Session, farmer_id: int) -> dict:
 
 def compute_all_features(db: Session, farmer_id: int) -> dict:
     """Compute the full feature vector for a farmer."""
-    # Find farm
+    try:
+        return _compute_all_features(db, farmer_id)
+    except Exception as exc:
+        logger.exception("Failed to compute all features for farmer_id=%s", farmer_id)
+        return {}
+
+
+def _compute_all_features(db: Session, farmer_id: int) -> dict:
     farm = db.query(Farm).filter(Farm.farmer_id == farmer_id).first()
     if not farm:
         return {}

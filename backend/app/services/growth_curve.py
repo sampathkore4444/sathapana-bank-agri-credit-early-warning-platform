@@ -5,10 +5,13 @@ deviations that indicate crop stress.
 """
 from datetime import date, timedelta
 from typing import Optional
+import logging
 import math
 from sqlalchemy.orm import Session
 
 from app.models import CropHealth, Farm, Farmer
+
+logger = logging.getLogger(__name__)
 
 
 # Normal rice growth curve parameters for Cambodia
@@ -109,6 +112,14 @@ def detect_growth_deviation(
     Returns:
         Dict with deviation analysis.
     """
+    try:
+        return _detect_growth_deviation(db, farm_id)
+    except Exception as exc:
+        logger.exception("Failed to detect growth deviation for farm_id=%s", farm_id)
+        return {"error": "Failed to compute growth deviation", "detail": str(exc)}
+
+
+def _detect_growth_deviation(db: Session, farm_id: int) -> dict:
     farm = db.query(Farm).filter(Farm.id == farm_id).first()
     if not farm or not farm.planting_date:
         return {"error": "No planting date available"}

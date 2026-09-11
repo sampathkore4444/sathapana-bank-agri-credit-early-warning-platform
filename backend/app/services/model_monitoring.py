@@ -8,6 +8,7 @@ Monitors:
 - False-positive / false-negative rates
 """
 import json
+import logging
 from datetime import datetime, date
 from typing import Optional
 import numpy as np
@@ -16,9 +17,25 @@ from sqlalchemy import func
 
 from app.models import RiskScore, Farmer, Loan, Alert
 
+logger = logging.getLogger(__name__)
+
+_ERROR_PAYLOAD = {"error": "Internal computation failure"}
+
+
+def _guard(fn, **kw):
+    try:
+        return fn(**kw)
+    except Exception as exc:
+        logger.exception("Model monitoring computation failed")
+        return {**_ERROR_PAYLOAD, "detail": str(exc)}
+
 
 def compute_score_distribution(db: Session) -> dict:
     """Analyze current risk score distribution."""
+    return _guard(_compute_score_distribution, db=db)
+
+
+def _compute_score_distribution(db: Session) -> dict:
     scores = db.query(RiskScore.risk_probability).all()
     values = [s[0] for s in scores]
 
@@ -57,6 +74,10 @@ def compute_prediction_calibration(db: Session) -> dict:
     Groups farmers by predicted risk score bin and checks
     actual delinquency rate in each bin.
     """
+    return _guard(_compute_prediction_calibration, db=db)
+
+
+def _compute_prediction_calibration(db: Session) -> dict:
     # Get farmers with risk scores and their DPD status
     results = (
         db.query(RiskScore.risk_probability, Loan.dpd)
@@ -109,6 +130,10 @@ def compute_feature_drift(db: Session) -> dict:
 
     Compares recent risk scores against historical baseline.
     """
+    return _guard(_compute_feature_drift, db=db)
+
+
+def _compute_feature_drift(db: Session) -> dict:
     all_scores = (
         db.query(RiskScore.scoring_date, RiskScore.risk_probability)
         .order_by(RiskScore.scoring_date)
@@ -162,8 +187,27 @@ def _compute_psi(expected: np.ndarray, actual: np.ndarray, n_bins: int = 10) -> 
     return psi
 
 
+def get_full_monitoring_report(db: Session) -> dict:
+    """Generate a comprehensive model monitoring report.
+
+    Each section is guarded independently so one failure
+    does not drop the entire report.
+    """
+    return {
+        "timestamp": datetime.utcnow().isoformat(),
+        "score_distribution": _guard(_compute_score_distribution, db=db),
+        "prediction_calibration": _guard(_compute_prediction_calibration, db=db),
+        "feature_drift": _guard(_compute_feature_drift, db=db),
+        "alert_accuracy": _guard(_compute_alert_accuracy, db=db),
+    }
+
+
 def compute_alert_accuracy(db: Session) -> dict:
     """Measure alert accuracy — what fraction of alerts led to actual DPD."""
+    return _guard(_compute_alert_accuracy, db=db)
+
+
+def _compute_alert_accuracy(db: Session) -> dict:
     alerts = (
         db.query(Alert, Loan.dpd)
         .join(Loan, Alert.farm_id == Loan.id)  # simplified join
@@ -186,15 +230,4 @@ def compute_alert_accuracy(db: Session) -> dict:
         "high_severity_alerts": high_alerts,
         "loans_with_dpd": flagged_with_dpd,
         "false_positive_estimate": "Requires temporal analysis of alert → DPD timeline",
-    }
-
-
-def get_full_monitoring_report(db: Session) -> dict:
-    """Generate a comprehensive model monitoring report."""
-    return {
-        "timestamp": datetime.utcnow().isoformat(),
-        "score_distribution": compute_score_distribution(db),
-        "prediction_calibration": compute_prediction_calibration(db),
-        "feature_drift": compute_feature_drift(db),
-        "alert_accuracy": compute_alert_accuracy(db),
     }

@@ -5,6 +5,13 @@ from sqlalchemy.orm import Session
 from app.models import Farm, Farmer, RiskScore, CropHealth
 
 
+def _parse_geojson(raw: Optional[str]) -> Optional[dict]:
+    try:
+        return json.loads(raw) if raw else None
+    except (TypeError, ValueError):
+        return None
+
+
 def list_farms(
     db: Session,
     province: Optional[str] = None,
@@ -27,7 +34,7 @@ def get_farm_geojson(db: Session, farm_id: int) -> Optional[dict]:
     if not farm:
         return None
 
-    boundary = json.loads(farm.boundary_geojson) if farm.boundary_geojson else None
+    boundary = _parse_geojson(farm.boundary_geojson)
     risk = (
         db.query(RiskScore)
         .filter(RiskScore.farm_id == farm_id)
@@ -61,7 +68,7 @@ def get_all_farms_geojson(
 
     features = []
     for farm in farms:
-        boundary = json.loads(farm.boundary_geojson) if farm.boundary_geojson else None
+        boundary = _parse_geojson(farm.boundary_geojson)
         risk = (
             db.query(RiskScore)
             .filter(RiskScore.farm_id == farm.id)

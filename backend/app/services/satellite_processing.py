@@ -6,10 +6,13 @@ Implements:
 - Temporal interpolation for gap-filling
 - Cloud-free compositing
 """
+import logging
 import math
 from datetime import date, timedelta
 from typing import Optional
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 # Sentinel-2 Scene Classification (SCL) values
@@ -118,6 +121,14 @@ def temporal_interpolation(
     Returns:
         List with interpolated values filling gaps.
     """
+    try:
+        return _temporal_interpolation(observations, max_gap_days)
+    except Exception as exc:
+        logger.exception("Temporal interpolation failed; returning raw observations")
+        return observations
+
+
+def _temporal_interpolation(observations: list[dict], max_gap_days: int) -> list[dict]:
     if len(observations) < 2:
         return observations
 
@@ -169,6 +180,17 @@ def build_cloud_free_composite(
     Returns:
         List of composite observations.
     """
+    try:
+        return _build_cloud_free_composite(daily_observations, composite_window_days)
+    except Exception as exc:
+        logger.exception("Cloud-free compositing failed")
+        return []
+
+
+def _build_cloud_free_composite(
+    daily_observations: list[dict],
+    composite_window_days: int,
+) -> list[dict]:
     if not daily_observations:
         return []
 

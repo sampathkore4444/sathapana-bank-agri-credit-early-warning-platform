@@ -4,11 +4,19 @@ Implements the SPEC §12 alert workflow:
 - Risk score crosses threshold → alert generated
 - Alert includes ID, farmer details, risk score, drivers, recommended action
 """
+import json
 from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.models import Alert, RiskScore, Farmer, Farm, Loan
 from app.services.notification_service import send_critical_alert
+
+
+def _parse_drivers(raw) -> list[dict]:
+    try:
+        return json.loads(raw) if raw else []
+    except (TypeError, ValueError):
+        return []
 
 
 def check_and_generate_alerts(db: Session) -> dict:
@@ -61,8 +69,6 @@ def check_and_generate_alerts(db: Session) -> dict:
 
 def _create_alert_if_threshold_crossed(db: Session, rs: RiskScore, farmer: Farmer) -> Alert:
     """Create an alert if the risk score crosses a threshold."""
-    from json import loads
-
     # Get farm
     farm = db.query(Farm).filter(Farm.id == rs.farm_id).first()
     if not farm:
@@ -85,7 +91,7 @@ def _create_alert_if_threshold_crossed(db: Session, rs: RiskScore, farmer: Farme
         return None  # GREEN — no alert
 
     # Get primary drivers
-    drivers = loads(rs.primary_drivers_json) if rs.primary_drivers_json else []
+    drivers = _parse_drivers(rs.primary_drivers_json)
     driver_summary = ", ".join(
         d["feature"].replace("_", " ") for d in drivers[:3]
     ) if drivers else "multiple factors"

@@ -6,7 +6,10 @@ Score = NDVI_deviation (30%) + NDVI_trend (20%) + NDWI (15%)
 Each component is normalized to 0-100, then combined with weights.
 """
 from typing import Optional
+import logging
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 # Weights from SPEC §9
@@ -137,6 +140,14 @@ def recompute_farm_health(db, farm_id: int) -> Optional[dict]:
 
     Uses actual satellite data instead of pre-seeded values.
     """
+    try:
+        return _recompute_farm_health(db, farm_id)
+    except Exception as exc:
+        logger.exception("Failed to recompute crop health for farm_id=%s", farm_id)
+        return {"error": "Failed to recompute crop health score", "detail": str(exc)}
+
+
+def _recompute_farm_health(db, farm_id: int) -> Optional[dict]:
     from app.models import CropHealth
     from app.services.growth_curve import detect_growth_deviation
     from datetime import timedelta
